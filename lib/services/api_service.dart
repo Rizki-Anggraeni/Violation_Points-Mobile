@@ -102,6 +102,36 @@ class ApiService {
     }
   }
 
+  /// Mengambil daftar siswa yang terhubung dengan orang tua.
+  Future<dynamic> getStudents() async {
+    try {
+      final response = await _dio.get(
+        '$baseUrl/api/students', // Asumsi endpoint untuk data siswa
+      );
+      return response.data;
+    } on DioException catch (e) {
+      // Menangani error spesifik dari Dio
+      log('Error fetching students', error: e);
+      // Melempar kembali error agar UI bisa menanganinya
+      rethrow;
+    }
+  }
+
+  /// Mengambil daftar semua aturan pelanggaran.
+  Future<dynamic> getViolationRules() async {
+    try {
+      final response = await _dio.get(
+        '$baseUrl/api/violation-rules', // Endpoint untuk aturan
+      );
+      return response.data;
+    } on DioException catch (e) {
+      // Menangani error spesifik dari Dio
+      log('Error fetching violation rules', error: e);
+      // Melempar kembali error agar UI bisa menanganinya
+      rethrow;
+    }
+  }
+
   // Anda bisa menambahkan kembali fungsi getParentDashboardData di sini jika diperlukan
   // ...
 }

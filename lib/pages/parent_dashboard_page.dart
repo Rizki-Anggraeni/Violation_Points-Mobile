@@ -5,6 +5,7 @@ import 'dart:developer';
 
 import 'package:mobile_ortu/main.dart';
 import 'package:mobile_ortu/services/api_service.dart';
+import 'package:mobile_ortu/pages/violation_rules_page.dart';
 
 class ParentDashboardPage extends StatefulWidget {
   const ParentDashboardPage({super.key});
@@ -16,13 +17,14 @@ class ParentDashboardPage extends StatefulWidget {
 class _ParentDashboardPageState extends State<ParentDashboardPage> {
   bool _isLoading = true;
   String? _errorMessage;
-  Map<String, dynamic>? _studentProfile;
 
   // State baru untuk filter tanggal dan data
   DateTime _selectedDate = DateTime.now();
   List<dynamic> _allViolations = [];
   List<dynamic> _allAttendances = [];
   List<dynamic> _schedules = [];
+  List<dynamic> _allStudents = [];
+  Map<String, dynamic>? _selectedStudent;
 
   @override
   void initState() {
@@ -34,52 +36,43 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
   /// Mengambil semua data dari backend, lalu UI akan memfilternya.
   Future<void> _fetchData() async {
     setState(() => _isLoading = true);
-    try {      
-      // Lakukan tiga request API secara bersamaan
+    try {
+      // Ambil ApiService sekali saja di awal untuk efisiensi.
+      final apiService = Provider.of<ApiService>(context, listen: false);
+
+      // Lakukan empat request API secara bersamaan
       final responses = await Future.wait([
-        // Ambil ApiService dari Provider untuk setiap request
-        Provider.of<ApiService>(context, listen: false).getViolations(),
-        Provider.of<ApiService>(context, listen: false).getAttendances(),
-        Provider.of<ApiService>(context, listen: false).getSchedules(),
+        apiService.getViolations(),
+        apiService.getAttendances(),
+        apiService.getSchedules(),
+        apiService.getStudents(), // Ambil data siswa
       ]);
 
       final List<dynamic> violationsResponse = responses[0];
       final List<dynamic> attendancesResponse = responses[1];
       final dynamic rawSchedulesResponse = responses[2];
+      final dynamic rawStudentsResponse = responses[3];
 
       // Penyesuaian: Pastikan kita mengambil list dari dalam key 'data' jika ada.
       final List<dynamic> schedulesResponse =
           (rawSchedulesResponse is Map && rawSchedulesResponse.containsKey('data')) ? rawSchedulesResponse['data'] : rawSchedulesResponse;
+      final List<dynamic> studentsResponse =
+          (rawStudentsResponse is Map && rawStudentsResponse.containsKey('data')) ? rawStudentsResponse['data'] : rawStudentsResponse;
 
       // Guard clause untuk memastikan widget masih ada
       if (!mounted) return;
-
-      // Hitung total poin secara dinamis dari semua pelanggaran
-      int totalPoinDinamis = violationsResponse.fold(0, (sum, violation) {
-        final poin = int.tryParse(violation['points_issued'].toString()) ?? 0;
-        return sum + poin;
-      });
-
-      // Buat data profil dari data pertama yang tersedia
-      String studentName = 'Ahmad Budi Santoso';
-      String studentNis = '23.4567';
-      String studentClass = 'XI PPLG A';
-      if (violationsResponse.isNotEmpty && violationsResponse.first['student'] != null) {
-        studentName = violationsResponse.first['student']['name'] ?? studentName;
-        studentNis = violationsResponse.first['student']['nis'] ?? studentNis;
-        studentClass = violationsResponse.first['student']['class']?['name'] ?? studentClass;
-      }
 
       setState(() {
         _allViolations = violationsResponse;
         _allAttendances = attendancesResponse;
         _schedules = schedulesResponse;
-        _studentProfile = {
-          'name': studentName,
-          'nis': studentNis,
-          'class': studentClass,
-          'total_points': totalPoinDinamis,
-        };
+        _allStudents = studentsResponse;
+
+        // Jika ada data siswa, pilih siswa pertama sebagai default
+        if (_allStudents.isNotEmpty) {
+          _selectedStudent = _allStudents.first;
+        }
+
         _isLoading = false;
         _errorMessage = null;
       });
@@ -119,6 +112,16 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
+            icon: const Icon(Icons.gavel),
+            tooltip: 'Lihat Aturan',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ViolationRulesPage()),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Logout',
             onPressed: () {
@@ -143,6 +146,8 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                     padding: const EdgeInsets.all(16.0),
                     children: [
                       _buildProfileCard(), // Menampilkan profil siswa
+                      if (_allStudents.length > 1)
+                        _buildStudentSelector(), // Tampilkan jika siswa lebih dari 1
                       const SizedBox(height: 24),
                       _buildDatePicker(), // Widget baru untuk memilih tanggal
                       const SizedBox(height: 24),
@@ -159,9 +164,18 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
 
   /// Widget untuk menampilkan kartu profil siswa.
   Widget _buildProfileCard() {
-    if (_studentProfile == null) {
+    if (_selectedStudent == null) {
       return const SizedBox.shrink();
     }
+
+    // Ambil data langsung dari objek siswa yang dipilih untuk konsistensi.
+    // Pastikan backend mengirimkan 'total_points' di dalam data siswa.
+    final studentName = _selectedStudent!['name'] ?? 'Nama Siswa';
+    final studentNis = _selectedStudent!['nis']?.toString() ?? '-';
+    // Ambil nama kelas dari objek 'class_id' yang di-populate.
+    final studentClass = _selectedStudent!['class_id']?['name'] ?? 'Belum ada kelas';
+    // Gunakan total poin dari data siswa, bukan dihitung ulang di frontend.
+    final totalPoin = _selectedStudent!['total_points']?.toString() ?? '0';
 
     return Card(
       elevation: 4,
@@ -183,11 +197,11 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _studentProfile!['name'] ?? 'Nama Siswa',
+                      studentName,
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       Text(
-                        'NIS: ${_studentProfile!['nis'] ?? '-'} | Kelas: ${_studentProfile!['class'] ?? '-'}',
+                      'NIS: $studentNis | Kelas: $studentClass',
                         style: TextStyle(color: Colors.grey[600]),
                       ),
                     ],
@@ -202,7 +216,7 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                 Column(
                   children: [
                     Text(
-                      (_studentProfile!['total_points'] ?? 0).toString(),
+                      totalPoin,
                       style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.red),
                     ),
                     const Text('Total Poin Pelanggaran'),
@@ -211,6 +225,43 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Widget baru untuk memilih siswa jika ada lebih dari satu.
+  Widget _buildStudentSelector() {
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<Map<String, dynamic>>(
+          value: _selectedStudent,
+          isExpanded: true,
+          icon: const Icon(Icons.switch_account_outlined),
+          items: _allStudents.map((student) {
+            return DropdownMenuItem<Map<String, dynamic>>(
+              value: student,
+              child: Text(
+                student['name'] ?? 'Siswa',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+            );
+          }).toList(),
+          onChanged: (newValue) {
+            if (newValue != null) {
+              setState(() {
+                _selectedStudent = newValue;
+                // Reset tanggal ke hari ini saat ganti siswa untuk konsistensi
+                _selectedDate = DateTime.now();
+              });
+            }
+          },
         ),
       ),
     );
@@ -231,7 +282,11 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
 
   /// Widget baru untuk section presensi.
   Widget _buildAttendanceSection() {
+    if (_selectedStudent == null) return const SizedBox.shrink();
+
     final attendanceToday = _allAttendances.where((att) {
+      if (att['student_id']?['_id'] != _selectedStudent!['_id']) return false;
+
       final attDate = DateTime.parse(att['date']);
       return attDate.year == _selectedDate.year &&
           attDate.month == _selectedDate.month &&
@@ -305,11 +360,15 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
 
   /// Widget baru untuk section jadwal pelajaran.
   Widget _buildScheduleSection() {
+    if (_selectedStudent == null) return const SizedBox.shrink();
+
     // Ambil nama hari dari tanggal yang dipilih (misal: 'Senin')
     final String dayName = DateFormat('EEEE', 'id_ID').format(_selectedDate);
 
+    // Asumsi: Jadwal tidak spesifik per siswa, tetapi per kelas.
+    // Jika spesifik per siswa, tambahkan filter `schedule['student_id'] == _selectedStudent!['id']`
     // Filter jadwal berdasarkan nama hari
-    final scheduleToday = _schedules.where((schedule) {
+    final scheduleForDay = _schedules.where((schedule) {
       return schedule['day'].toString().toLowerCase() == dayName.toLowerCase();
     }).toList();
 
@@ -321,7 +380,7 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
           style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        scheduleToday.isEmpty
+        scheduleForDay.isEmpty
             ? Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
@@ -339,11 +398,11 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
             : ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: scheduleToday.length,
+                itemCount: scheduleForDay.length,
                 itemBuilder: (context, index) {
                   try {
                     // Pastikan setiap item adalah Map<String, dynamic>
-                    final schedule = scheduleToday[index] as Map<String, dynamic>;
+                    final schedule = scheduleForDay[index] as Map<String, dynamic>;
                     return Card(
                       elevation: 1,
                       shadowColor: Colors.black12,
@@ -353,16 +412,12 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                       ),
                       child: ListTile(
                         title: Text(
-                          schedule['subject']?['name'] ?? 'Mata Pelajaran',
+                          schedule['subject'] ?? 'Mata Pelajaran',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         subtitle: Text(
                           '${schedule['start_time']} - ${schedule['end_time']}',
                           style: TextStyle(color: Colors.grey[600]),
-                        ),
-                        trailing: Text(
-                          schedule['teacher']?['name'] ?? 'Guru Pengampu',
-                          style: const TextStyle(fontSize: 12),
                         ),
                       ),
                     );
@@ -384,7 +439,11 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
 
   /// Widget baru untuk section pelanggaran.
   Widget _buildViolationsSection() {
+    if (_selectedStudent == null) return const SizedBox.shrink();
+
     final violationsToday = _allViolations.where((v) {
+      if (v['student_id']?['_id'] != _selectedStudent!['_id']) return false;
+
       final vDate = DateTime.parse(v['createdAt']);
       return vDate.year == _selectedDate.year &&
           vDate.month == _selectedDate.month &&
@@ -428,12 +487,12 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                       leading: CircleAvatar(
                         backgroundColor: Colors.red[100],
                         child: Text(
-                          '+${violation['points_issued']}',
+                          '+${violation['rule_id']?['points'] ?? 0}',
                           style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 14),
                         ),
                       ),
-                      title: Text(violation['violation_rule']?['name'] ?? 'Nama Pelanggaran Tidak Diketahui'),
-                      subtitle: Text('Kejadian pukul $formattedDate'),
+                      title: Text(violation['rule_id']?['violation_name'] ?? 'Nama Pelanggaran Tidak Diketahui'),
+                      subtitle: Text('Dicatat pukul $formattedDate'),
                     ),
                   );
                 },
