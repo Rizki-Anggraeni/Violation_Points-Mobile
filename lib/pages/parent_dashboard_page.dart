@@ -245,8 +245,6 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                       const SizedBox(height: 20),
                       _buildDatePicker(),
                       const SizedBox(height: 20),
-                      _buildAttendanceSection(),
-                      const SizedBox(height: 20),
                       _buildScheduleSection(),
                       const SizedBox(height: 20),
                       _buildViolationsSection(),
@@ -420,29 +418,6 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
     );
   }
 
-  /// Widget baru untuk section presensi.
-  Widget _buildAttendanceSection() {
-    if (_selectedStudent == null) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Status Presensi',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        _filteredAttendanceToday.isEmpty
-            ? _buildInfoCard(
-                icon: Icons.info_outline,
-                text: 'Belum ada data presensi pada tanggal ini.',
-                bgColor: Colors.grey[200]!,
-                textColor: Colors.black54,
-              )
-            : _buildAttendanceBadge(_filteredAttendanceToday.first['status']),
-      ],
-    );
-  }
-
   /// Widget untuk menampilkan badge status presensi.
   Widget _buildAttendanceBadge(String status) {
     Color bgColor;
@@ -450,7 +425,7 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
     IconData icon;
 
     switch (status.toUpperCase()) {
-      case 'MASUK':
+      case 'HADIR':
         bgColor = Colors.green.shade800.withAlpha(26);
         textColor = Colors.green[800]!;
         icon = Icons.check_circle_outline;
@@ -466,6 +441,11 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
         icon = Icons.info_outline;
         break;
       case 'ALFA':
+        bgColor = Colors.red.shade800.withAlpha(26);
+        textColor = Colors.red[800]!;
+        icon = Icons.cancel_outlined;
+        break;
+      case 'BELUM ADA DATA':
       default:
         bgColor = Colors.red.shade800.withAlpha(26);
         textColor = Colors.red[800]!;
@@ -480,6 +460,7 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min, // PENTING: Mencegah Row mengambil lebar tak terbatas
         children: [
           Icon(icon, color: textColor, size: 22),
           const SizedBox(width: 12),
@@ -500,7 +481,7 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Jadwal Pelajaran',
+          'Jadwal & Presensi Hari Ini',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
@@ -519,6 +500,16 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                   try {
                     // Pastikan setiap item adalah Map<String, dynamic>
                     final schedule = _filteredScheduleForDay[index] as Map<String, dynamic>;
+                    final scheduleId = schedule['_id'];
+
+                    // Cari status presensi yang sesuai untuk jadwal ini
+                    final attendance = _filteredAttendanceToday.firstWhere(
+                      (att) => att['schedule_id']?['_id'] == scheduleId,
+                      orElse: () => null, // Kembalikan null jika tidak ditemukan
+                    );
+
+                    final status = attendance?['status'] ?? 'Belum ada data';
+
                     return Card(
                       elevation: 0,
                       color: Colors.white,
@@ -528,12 +519,12 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                         side: BorderSide(color: Colors.grey[200]!),
                       ),
                       child: ListTile(
-                        leading: const Icon(Icons.menu_book_outlined, color: Colors.blue),
+                        leading: _buildAttendanceBadge(status),
                         title: Text(
                           schedule['subject'] ?? 'Mata Pelajaran',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        trailing: Text(
+                        subtitle: Text(
                           '${schedule['start_time']} - ${schedule['end_time']}',
                           style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.w500),
                         ),
