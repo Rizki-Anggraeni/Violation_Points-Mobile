@@ -2,17 +2,19 @@ import 'dart:io' show Platform;
 import 'dart:developer';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:mobile_ortu/main.dart'; // Import main.dart untuk AuthNotifier
 
 class ApiService {
   final Dio _dio = Dio();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  final AuthNotifier _authNotifier;
 
   // Secara dinamis menentukan baseUrl.
   // Gunakan 10.0.2.2 untuk emulator Android agar bisa terhubung ke localhost komputer.
   // Gunakan localhost untuk platform lain (iOS simulator, desktop, dll).
   final String baseUrl = Platform.isAndroid ? 'http://10.0.2.2:3000' : 'http://127.0.0.1:3000';
 
-  ApiService() {
+  ApiService({required AuthNotifier authNotifier}) : _authNotifier = authNotifier {
     // Interceptor untuk menambahkan token secara otomatis ke setiap request
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
@@ -29,6 +31,18 @@ class ApiService {
 
         // Lanjutkan request
         return handler.next(options);
+      },
+      onError: (DioException e, handler) async {
+        // Jika respons adalah 401 (Unauthorized)
+        if (e.response?.statusCode == 401) {
+          log("Token tidak valid atau kedaluwarsa. Melakukan logout...");
+          // Panggil fungsi logout dari AuthNotifier
+          await _authNotifier.logout();
+          // Jangan lanjutkan error ke UI, karena sudah ditangani dengan logout.
+          return; // Keluar dari interceptor
+        }
+        // Untuk error lain, teruskan saja agar bisa ditangani oleh UI jika perlu.
+        return handler.next(e);
       },
     ));
   }
@@ -129,6 +143,23 @@ class ApiService {
       log('Error fetching violation rules', error: e);
       // Melempar kembali error agar UI bisa menanganinya
       rethrow;
+    }
+  }
+
+  /// Mengirimkan FCM token ke backend untuk disimpan.
+  Future<void> updateFCMToken(String fcmToken) async {
+    // Token JWT akan ditambahkan secara otomatis oleh interceptor.
+    try {
+      // Menggunakan PUT sesuai dengan definisi di userRoutes.js
+      await _dio.put(
+        '$baseUrl/api/users/fcm-token',
+        data: {'fcmToken': fcmToken},
+      );
+      log('FCM token berhasil dikirim ke backend.');
+    } on DioException catch (e) {
+      // Jangan rethrow error jika status 401, karena sudah ditangani interceptor.
+      // Untuk error lain, kita hanya log saja agar tidak mengganggu user.
+      log('Gagal mengirim FCM token: ${e.message}');
     }
   }
 

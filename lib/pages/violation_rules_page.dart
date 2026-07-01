@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_ortu/services/api_service.dart';
+import 'package:provider/provider.dart';
 
 import 'dart:developer';
 class ViolationRulesPage extends StatefulWidget {
@@ -10,11 +11,13 @@ class ViolationRulesPage extends StatefulWidget {
 }
 
 class _ViolationRulesPageState extends State<ViolationRulesPage> {
-  final _apiService = ApiService();
   bool _isLoading = true;
   String? _errorMessage;
   List<dynamic> _rules = [];
   List<dynamic> _filteredRules = [];
+
+  int _currentPage = 1;
+  final int _itemsPerPage = 10;
 
   final TextEditingController _searchController = TextEditingController();
 
@@ -39,13 +42,15 @@ class _ViolationRulesPageState extends State<ViolationRulesPage> {
         final ruleName = (rule['violation_name'] as String?)?.toLowerCase() ?? '';
         return ruleName.contains(query);
       }).toList();
+      _currentPage = 1; // Reset ke halaman pertama setiap kali ada pencarian baru
     });
   }
 
   Future<void> _fetchRules() async {
     try {
+      final apiService = Provider.of<ApiService>(context, listen: false);
       // Panggil fungsi yang benar untuk mengambil data aturan pelanggaran.
-      final response = await _apiService.getViolationRules();
+      final response = await apiService.getViolationRules();
 
       // Pastikan respons adalah List, jika tidak, coba ambil dari key 'data'
       final List<dynamic> rulesData = (response is Map && response.containsKey('data')) ? response['data'] : response;
@@ -72,11 +77,22 @@ class _ViolationRulesPageState extends State<ViolationRulesPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Logika untuk paginasi
+    final int totalItems = _filteredRules.length;
+    final int totalPages = (totalItems / _itemsPerPage).ceil();
+    final int startIndex = (_currentPage - 1) * _itemsPerPage;
+    final int endIndex = (startIndex + _itemsPerPage > totalItems) ? totalItems : startIndex + _itemsPerPage;
+    final List<dynamic> paginatedRules = (startIndex < totalItems) 
+        ? _filteredRules.sublist(startIndex, endIndex) 
+        : [];
+
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: const Text('Daftar Aturan & Poin'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 1,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -99,39 +115,63 @@ class _ViolationRulesPageState extends State<ViolationRulesPage> {
                       ),
                     ),
                     Expanded(
-                      child: _filteredRules.isEmpty
+                      child: paginatedRules.isEmpty
                           ? const Center(child: Text('Aturan tidak ditemukan.'))
                           : ListView.builder(
                               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                              itemCount: _filteredRules.length,
+                              itemCount: paginatedRules.length,
                               itemBuilder: (context, index) {
-                                final rule = _filteredRules[index] as Map<String, dynamic>;
+                                final rule = paginatedRules[index] as Map<String, dynamic>;
                                 // Gunakan key dari backend: 'violation_name', 'points', 'category'
                                 final ruleName = rule['violation_name'] ?? 'Aturan Tidak Diketahui';
                                 final points = rule['points']?.toString() ?? '0';
                                 final category = rule['category'] ?? 'Umum';
 
                                 return Card(
+                                  elevation: 0,
+                                  color: Colors.white,
                                   margin: const EdgeInsets.only(bottom: 10),
-                                  elevation: 2,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    side: BorderSide(color: Colors.grey[200]!),
+                                  ),
                                   child: ListTile(
                                     leading: CircleAvatar(
-                                      backgroundColor: Colors.orange[100],
+                                      backgroundColor: Colors.red.withAlpha(26), // 255 * 0.1
                                       child: Text(
-                                        points,
-                                        style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                                        '+$points',
+                                        style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 14),
                                       ),
                                     ),
                                     title: Text(
                                       ruleName,
                                       style: const TextStyle(fontWeight: FontWeight.bold),
                                     ),
-                                    subtitle: Text('Kategori: $category'),
+                                    subtitle: Text('Kategori: $category', style: TextStyle(color: Colors.grey[600])),
                                   ),
                                 );
                               },
                             ),
                     ),
+                    // Kontrol Paginasi
+                    if (totalPages > 1)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            TextButton(
+                              onPressed: _currentPage > 1 ? () => setState(() => _currentPage--) : null,
+                              child: const Text('‹ Sebelumnya'),
+                            ),
+                            Text('Hal $_currentPage dari $totalPages', style: const TextStyle(fontWeight: FontWeight.w500)),
+                            TextButton(
+                              onPressed: _currentPage < totalPages ? () => setState(() => _currentPage++) : null,
+                              child: const Text('Berikutnya ›'),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
     );

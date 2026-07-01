@@ -63,76 +63,115 @@ class _LoginPageState extends State<LoginPage> {
             backgroundColor: Colors.red,
           ),
         );
+        // PENTING: Hentikan loading jika login gagal
+        setState(
+          () => _isLoading = false,
+        );
       }
     } catch (e) {
       // Guard clause juga diperlukan di sini jika terjadi exception
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Terjadi kesalahan: ${e.toString()}')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      );      
+      // Hentikan loading jika terjadi error
+      setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Login Orang Tua',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-                Text(
-                  'SMK N 1 Pringsurat',
-                  style: Theme.of(context).textTheme.titleMedium,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 40),
-                TextFormField(
-                  controller: _usernameController,
-                  decoration: const InputDecoration(labelText: 'Username / NIS', border: OutlineInputBorder()),
-                  validator: (value) => (value == null || value.isEmpty) ? 'Username tidak boleh kosong' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: !_isPasswordVisible,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    border: const OutlineInputBorder(),
-                    suffixIcon: IconButton(
-                      icon: Icon(_isPasswordVisible ? Icons.visibility_off : Icons.visibility),
-                      onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
-                    ),
-                  ),
-                  validator: (value) => (value == null || value.isEmpty) ? 'Password tidak boleh kosong' : null,
-                ),
-                const SizedBox(height: 24),
-                _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : ElevatedButton(
-                        onPressed: _handleLogin,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        child: const Text('LOGIN'),
+      // Gunakan background yang sama dengan dashboard
+      backgroundColor: Colors.grey[100],
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(color: Colors.grey[200]!),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // 1. Tambahkan Logo Sekolah di sini
+                      // Pastikan path 'assets/images/logo_sekolah.png' sudah benar
+                      // dan sudah didaftarkan di pubspec.yaml
+                      Image.asset(
+                        'assets/images/Logo-SMK.png',
+                        height: 80,
+                        errorBuilder: (context, error, stackTrace) {
+                          // Fallback jika logo tidak ditemukan
+                          return const Icon(Icons.school, size: 80, color: Colors.grey);
+                        },
                       ),
-              ],
+                      const SizedBox(height: 16),
+                      Text(
+                        'Login Orang Tua',
+                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
+                      Text(
+                        'SMK Negeri Pringsurat',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.grey[600]),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 40),
+                      TextFormField(
+                        controller: _usernameController,
+                        decoration: InputDecoration(
+                          labelText: 'Username / NIS',
+                          prefixIcon: const Icon(Icons.person_outline),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                        ),
+                        validator: (value) => (value == null || value.isEmpty) ? 'Username tidak boleh kosong' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: !_isPasswordVisible,
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          prefixIcon: const Icon(Icons.lock_outline),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                          suffixIcon: IconButton(
+                            icon: Icon(_isPasswordVisible ? Icons.visibility_off : Icons.visibility),
+                            onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+                          ),
+                        ),
+                        validator: (value) => (value == null || value.isEmpty) ? 'Password tidak boleh kosong' : null,
+                      ),
+                      const SizedBox(height: 24),
+                      _isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : ElevatedButton(
+                              onPressed: _handleLogin,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Theme.of(context).primaryColor,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                elevation: 2,
+                              ),
+                              child: const Text('LOGIN', style: TextStyle(fontWeight: FontWeight.bold)),
+                            ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
         ),
